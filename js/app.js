@@ -27,10 +27,10 @@
     : now < ds + 864e5 ? 'is being held today in Tamil Nadu' : 'was held in Tamil Nadu';
 
   var hero = $('hero'), arch = $('arch'), pt = $('pt'), pb = $('pb'),
-      dots = $('dots'), nx = $('next'), nl = $('nl'), peek = $('peek'),
+      dots = $('dots'), nx = $('next'), nl = $('nl'), seal = $('seal'),
       dbtn = [].slice.call(dots.children),
       secs = [null, $('s1'), $('s2'), $('s3')],
-      fade = ['hl', 'nm', 'dt', 'o1', 'o2', 'stw', 'peek'].map($);
+      fade = ['hl', 'nm', 'dt', 'o1', 'o2', 'seal'].map($);
   var idx = 0, busy = false, ht = 0, settle = 0, A = null,
       px = 0, py = 0, tx = 0, ty = 0, push = 0, lock = 0, anim = false;
 
@@ -46,14 +46,13 @@
     if (!A) measure();
     var e = sm(W(t, 0, 1)), Wd = innerWidth, H = innerHeight,
         S = Math.max(Wd / A.w, H / A.h) * 1.05, sc = 1 + (S - 1) * e,
-        r = (A.w / 2) * (1 - sm(e * 1.25));
-    arch.style.borderRadius = r + 'px ' + r + 'px 0 0';
+        k = 1 - sm(e * 1.25), rx = (A.w / 2) * k, ry = A.w * .4513 * k;
+    arch.style.borderRadius = rx + 'px ' + rx + 'px 0 0 / ' + ry + 'px ' + ry + 'px 0 0';
     arch.style.transform = 'perspective(900px) translate(' + ((Wd / 2 - A.cx) * e) + 'px,' + ((H / 2 - A.cy) * e) +
       'px) rotateY(' + (px * 6 * (1 - e)) + 'deg) rotateX(' + (-py * 4 * (1 - e)) + 'deg) scale(' + sc + ')';
     var f = 1 - cl(t / .26);
     fade.forEach(function (el) { el.style.opacity = f; });
-    peek.style.transform = f < 1 ? 'translateY(' + ((1 - f) * 40) + 'px)' : '';
-    peek.style.animation = f < 1 ? 'none' : '';
+    seal.style.transform = 'scale(' + (1 + (1 - f) * .6) + ')';
     var ho = 1 - sm(W(t, .72, 1));
     hero.style.opacity = ho;
     hero.style.visibility = ho <= .001 ? 'hidden' : 'visible';
@@ -80,13 +79,28 @@
     void s.offsetWidth;
     s.style.transition = '';
   }
+  /* rolling-digit counter (smooth, no flicker) */
+  function build(el) {
+    var t = String(+el.dataset.count).padStart(2, '0');
+    el.setAttribute('aria-label', String(+el.dataset.count));
+    el.innerHTML = ''; el._d = [];
+    [0, 1].forEach(function (k) {
+      var dg = document.createElement('span'), st = document.createElement('span'), h = '';
+      dg.className = 'dg'; st.className = 'st'; dg.setAttribute('aria-hidden', 'true');
+      for (var r = 0; r < 20; r++) h += '<i>' + (r % 10) + '</i>';
+      st.innerHTML = h; dg.appendChild(st); el.appendChild(dg);
+      el._d.push({ st: st, v: +t[k], ones: k === 1 });
+    });
+  }
+  [].forEach.call(document.querySelectorAll('[data-count]'), build);
   function count(s) {
     [].forEach.call(s.querySelectorAll('[data-count]'), function (el) {
-      var to = +el.dataset.count, st = performance.now() + 320, d = 1100;
-      requestAnimationFrame(function f(n) {
-        var k = cl((n - st) / d);
-        el.textContent = String(Math.max(1, Math.round(1 + (to - 1) * sm(k)))).padStart(2, '0');
-        if (k < 1) requestAnimationFrame(f);
+      el._d.forEach(function (d) {
+        d.st.style.transition = 'none'; d.st.style.transform = 'translateY(0)'; void d.st.offsetWidth;
+        setTimeout(function () {
+          d.st.style.transition = 'transform ' + (d.ones ? 1.8 : 1.3) + 's cubic-bezier(.2,.8,.1,1)';
+          d.st.style.transform = 'translateY(-' + ((d.ones ? 10 + d.v : d.v) * 5) + '%)';
+        }, 380);
       });
     });
   }
@@ -109,7 +123,7 @@
     dots.classList.toggle('show', idx >= 1);
     nx.classList.toggle('show', idx >= 1);
     nx.classList.toggle('rev', idx === 3);
-    nl.textContent = idx === 3 ? 'Back to start' : 'Next';
+    nl.textContent = idx === 3 ? 'Start over' : 'Next';
   }
 
   function go(n) {
@@ -132,7 +146,7 @@
   function next() { go(idx === 3 ? 0 : idx + 1); }
 
   /* inputs */
-  peek.addEventListener('click', function () { go(1); });
+  $('stw').addEventListener('click', function () { go(1); });
   nx.addEventListener('click', next);
   dbtn.forEach(function (b, i) { b.addEventListener('click', function () { go(i); }); });
   addEventListener('keydown', function (e) {
