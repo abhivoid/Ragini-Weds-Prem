@@ -7,8 +7,10 @@
   function W(p, a, b) { return cl((p - a) / (b - a)); }
   function ease(k) { return k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; }
 
-  /* real viewport height (mobile address bars) */
-  function setVh() { document.documentElement.style.setProperty('--vh', innerHeight * .01 + 'px'); }
+  /* viewport height: CSS svh is stable on iOS Safari; JS fallback only for old browsers */
+  var useJsVh = !(window.CSS && CSS.supports && CSS.supports('height', '1svh'));
+  var lastW = innerWidth;
+  function setVh() { if (useJsVh) document.documentElement.style.setProperty('--vh', innerHeight * .01 + 'px'); }
   setVh();
 
   /* hero names, letter by letter */
@@ -41,23 +43,20 @@
     A = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, h: r.height };
   }
 
-  /* hero -> invitation: the arch grows until it fills the screen */
+  /* hero -> invitation: zoom through the arch, dissolve into the card (transform + opacity only) */
   function renderHero(t) {
     if (!A) measure();
-    var e = sm(W(t, 0, 1)), Wd = innerWidth, H = innerHeight,
-        S = Math.max(Wd / A.w, H / A.h) * 1.05, sc = 1 + (S - 1) * e,
-        k = 1 - sm(e * 1.25), rx = (A.w / 2) * k, ry = A.w * .4513 * k;
-    arch.style.borderRadius = rx + 'px ' + rx + 'px 0 0 / ' + ry + 'px ' + ry + 'px 0 0';
-    arch.style.transform = 'perspective(900px) translate(' + ((Wd / 2 - A.cx) * e) + 'px,' + ((H / 2 - A.cy) * e) +
-      'px) rotateY(' + (px * 6 * (1 - e)) + 'deg) rotateX(' + (-py * 4 * (1 - e)) + 'deg) scale(' + sc + ')';
+    var Wd = innerWidth, H = innerHeight,
+        S = Math.max(Wd / A.w, H / A.h) * 1.06, sc = 1 + (S - 1) * t;
+    arch.style.transform = 'translate3d(' + ((Wd / 2 - A.cx) * t) + 'px,' + ((H / 2 - A.cy) * t) + 'px,0) scale(' + sc + ')';
     var f = 1 - cl(t / .26);
     fade.forEach(function (el) { el.style.opacity = f; });
     seal.style.transform = 'scale(' + (1 + (1 - f) * .6) + ')';
-    var ho = 1 - sm(W(t, .72, 1));
+    var ho = 1 - sm(W(t, .42, .9));
     hero.style.opacity = ho;
     hero.style.visibility = ho <= .001 ? 'hidden' : 'visible';
     hero.style.pointerEvents = ho > .5 ? 'auto' : 'none';
-    settle = sm(W(t, .7, 1));
+    settle = sm(W(t, .5, 1));
   }
 
   function animHero(to, dur, done, thr, cb) {
@@ -132,6 +131,7 @@
     var from = idx, dir = n > from ? 1 : -1;
     idx = n; ui(); push = dir * 16;
     if (from === 0) {
+      measure();
       animHero(1, 1500, function () { busy = false; }, .8, function () { enter(1, 1); });
       if (n > 1) setTimeout(function () { busy = false; go(n); }, 1600);
     } else if (n === 0) {
@@ -193,15 +193,21 @@
       ty = Math.max(-1, Math.min(1, ((e.beta || 45) - 45) / 25));
     }, { passive: true });
   } catch (x) { /* optional */ }
-  addEventListener('resize', function () { setVh(); measure(); });
+  addEventListener('resize', function () {
+    if (innerWidth !== lastW) { lastW = innerWidth; setVh(); measure(); } else if (useJsVh) { setVh(); }
+  });
   addEventListener('load', measure);
 
-  /* render loop: tilt, push, hero */
+  /* render loop: writes to the DOM only when a value changes (keeps Safari smooth) */
+  var lastHt = -1, lastPt = '', lastPb = '';
   function frame() {
     px += (tx - px) * .06; py += (ty - py) * .06; push *= .9;
-    if (idx === 0 || anim || ht > 0) renderHero(ht);
-    pt.style.transform = 'translate(' + (-px * 7) + 'px,' + (-3 - (1 - settle) * 22 - py * 3 - push) + 'px) scale(1.06)';
-    pb.style.transform = 'translate(' + (px * 7) + 'px,' + (3 + (1 - settle) * 22 + py * 3 + push * .6) + 'px) scale(1.06)';
+    if (Math.abs(push) < .05) push = 0;
+    if (ht !== lastHt) { renderHero(ht); lastHt = ht; }
+    var a = 'translate3d(' + (-px * 7).toFixed(1) + 'px,' + (-3 - (1 - settle) * 22 - py * 3 - push).toFixed(1) + 'px,0) scale(1.06)',
+        b = 'translate3d(' + (px * 7).toFixed(1) + 'px,' + (3 + (1 - settle) * 22 + py * 3 + push * .6).toFixed(1) + 'px,0) scale(1.06)';
+    if (a !== lastPt) { pt.style.transform = a; lastPt = a; }
+    if (b !== lastPb) { pb.style.transform = b; lastPb = b; }
     requestAnimationFrame(frame);
   }
   ui();
